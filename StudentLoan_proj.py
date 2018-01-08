@@ -48,9 +48,6 @@ plt.title('Distribution of Repayment Rate')
 # Process Data
 #==============================================================================
 
-############
-#Categorical
-############
 #%% Concatenate train_values and test_values
 df_comb=pd.concat([df, dft],
                   axis='rows')
@@ -67,6 +64,9 @@ df_comb_NAfilter = df_comb.dropna(axis=1, thresh=13500)
 #%% info
 df_comb_NAfilter.info()
 
+############
+#Categorical
+############
 #%% inspect objects
 df_comb_NAfilter.describe(include=[np.object])
 
@@ -148,5 +148,42 @@ df_testTsf.head()
 trainTsf=pd.concat([df_trainTsf, df1], axis='columns')
 
 #==============================================================================
-# Exp
+# EDA
 #==============================================================================
+#%%
+sns.color_palette('deep')
+sns.set_context("poster")
+sns.set_style("ticks")
+
+##############
+# Categorical
+##############
+
+#%%
+catTrain=df_cat[:8705]
+catPlot=pd.concat([catTrain, df1], axis='columns')
+
+#%% Repayment rate vs school ownership
+ax = sns.barplot(x='school__ownership',
+                 y='repayment_rate',
+                 data=catPlot)
+
+#%% Repayment rate vs school region id
+ax = sns.barplot(x='school__region_id',
+                 y='repayment_rate',
+                 data=catPlot)
+
+#%% Repayment rate vs school__degrees_awarded_highest
+ax = sns.barplot(x='school__degrees_awarded_highest',
+                 y='repayment_rate',
+                 data=catPlot)
+
+#%% Repayment rate vs school__institutional_characteristics_level
+sns.barplot(x='school__institutional_characteristics_level',
+            y='repayment_rate',
+            data=catPlot)
+
+############
+# Numeric
+############
+
