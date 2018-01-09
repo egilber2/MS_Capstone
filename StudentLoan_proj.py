@@ -11,7 +11,8 @@ Created on Sat Jan  6 09:13:00 2018
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.feature_selection import VarianceThreshold 
 from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
 import sklearn.metrics as metrics
 import seaborn as sns
@@ -21,7 +22,7 @@ from sklearn.decomposition import PCA
 from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error
 from math import sqrt
-
+from scipy import stats
 #%% Import data
 df=pd.read_csv('train_values.csv',
                index_col='row_id')
@@ -128,9 +129,19 @@ df_num.isnull().sum().plot(kind='hist')
 df_numImp=df_num.fillna(df_num.mean())
 df_numImp.isnull().sum().sum()
 
+#%% remove features with <5% variance
+vt=VarianceThreshold(threshold=0.05)
+vt.fit(df_numImp)
+
+#%%select out chosen features based on variance threshold
+df_numImpvar=df_numImp.iloc[:,vt.get_support()]
+df_numImpvar.info()
+
 #%% combine transformed categorical and numeric dataframes
-df_combTsf=pd.concat([df_catDum, df_numImp], axis='columns')
-df_combTsf.info()
+df_combTsf=pd.concat([df_catDum, df_numImpvar], axis='columns')
+df_combTsf.info()  #removes 125 features
+
+
 
 #%%split back into train and test dataframes
 df_trainTsf=df_combTsf[:8705]
@@ -147,6 +158,13 @@ df_testTsf.head()
 #%% append train values to train set
 trainTsf=pd.concat([df_trainTsf, df1], axis='columns')
 
+#%% Sample data set
+trainTsf_3K = trainTsf.sample(n=3000, random_state=7811)
+y=trainTsf_3K['repayment_rate'].copy()
+X=trainTsf_3K.drop('repayment_rate', axis=1)
+
+
+
 #==============================================================================
 # EDA
 #==============================================================================
@@ -155,7 +173,7 @@ sns.color_palette('deep')
 sns.set_context("poster")
 sns.set_style("ticks")
 
-##############
+###############
 # Categorical
 ##############
 
