@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.feature_selection import VarianceThreshold 
+from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_regression, RFECV
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
 import sklearn.metrics as metrics
 import seaborn as sns
@@ -129,8 +130,13 @@ df_num.isnull().sum().plot(kind='hist')
 df_numImp=df_num.fillna(df_num.mean())
 df_numImp.isnull().sum().sum()
 
+###################
+# Feature Selection
+###################
+
+##-Variance Threshold-##
 #%% remove features with <5% variance
-vt=VarianceThreshold(threshold=0.05)
+vt=VarianceThreshold(threshold=0.07)
 vt.fit(df_numImp)
 
 #%%select out chosen features based on variance threshold
@@ -140,8 +146,6 @@ df_numImpvar.info()
 #%% combine transformed categorical and numeric dataframes
 df_combTsf=pd.concat([df_catDum, df_numImpvar], axis='columns')
 df_combTsf.info()  #removes 125 features
-
-
 
 #%%split back into train and test dataframes
 df_trainTsf=df_combTsf[:8705]
@@ -157,13 +161,25 @@ df_testTsf.head()
 
 #%% append train values to train set
 trainTsf=pd.concat([df_trainTsf, df1], axis='columns')
+y=trainTsf['repayment_rate'].copy()
+X=trainTsf.drop('repayment_rate', axis='columns')
+
+##-RFE-#
+
+#%% 
+estimator = RandomForestRegressor()
+selector = RFECV(estimator,step=1, scoring='neg_mean_absolute_error')
+selector=selector.fit(X, y)
+print("Optimal number of features : %d" % selector.n_features_)
+
+#%%
+trainRFE=X.iloc[:,selector.get_support()]
+trainRFE.info()
 
 #%% Sample data set
-trainTsf_3K = trainTsf.sample(n=3000, random_state=7811)
-y=trainTsf_3K['repayment_rate'].copy()
-X=trainTsf_3K.drop('repayment_rate', axis=1)
-
-
+#trainTsf_3K = trainTsf.sample(n=3000, random_state=7811)
+#y=trainTsf_3K['repayment_rate'].copy()
+#X=trainTsf_3K.drop('repayment_rate', axis=1)
 
 #==============================================================================
 # EDA
@@ -204,4 +220,9 @@ sns.barplot(x='school__institutional_characteristics_level',
 ############
 # Numeric
 ############
+
+#==============================================================================
+# Build predictive models
+#==============================================================================
+
 
