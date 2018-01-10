@@ -11,9 +11,10 @@ Created on Sat Jan  6 09:13:00 2018
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn.model_selection import RepeatedKFold
 from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_regression, RFECV
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.grid_search import GridSearchCV, RandomizedSearchCV
 import sklearn.metrics as metrics
 import seaborn as sns
@@ -24,6 +25,7 @@ from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 from scipy import stats
+from scipy.stats import randint as sp_randint
 #%% Import data
 df=pd.read_csv('train_values.csv',
                index_col='row_id')
@@ -66,9 +68,9 @@ df_comb_NAfilter = df_comb.dropna(axis=1, thresh=13500)
 #%% info
 df_comb_NAfilter.info()
 
-############
-#Categorical
-############
+###################
+''' Categorical '''
+###################
 #%% inspect objects
 df_comb_NAfilter.describe(include=[np.object])
 
@@ -117,7 +119,7 @@ df_catDum.info()
 df_catDum.head()
 
 ###############
-# Numeric
+ '''Numeric'''
 ###############
 
 #%% missing values in numeric
@@ -130,13 +132,13 @@ df_num.isnull().sum().plot(kind='hist')
 df_numImp=df_num.fillna(df_num.mean())
 df_numImp.isnull().sum().sum()
 
-###################
-# Feature Selection
-###################
+#########################
+''' Feature Selection '''
+#########################
 
 ##-Variance Threshold-##
 #%% remove features with <5% variance
-vt=VarianceThreshold(threshold=0.07)
+vt=VarianceThreshold(threshold=0.05)
 vt.fit(df_numImp)
 
 #%%select out chosen features based on variance threshold
@@ -164,17 +166,49 @@ trainTsf=pd.concat([df_trainTsf, df1], axis='columns')
 y=trainTsf['repayment_rate'].copy()
 X=trainTsf.drop('repayment_rate', axis='columns')
 
-##-RFE-#
+##-RFE-##
 
 #%% 
 estimator = RandomForestRegressor()
-selector = RFECV(estimator,step=1, scoring='neg_mean_absolute_error')
+selector = RFECV(estimator,step=1, scoring='neg_mean_absolute_error', cv=3)
 selector=selector.fit(X, y)
 print("Optimal number of features : %d" % selector.n_features_)
+#Optimal number of features : 178
 
-#%%
+#%%dataframe of features selected by RFECV
 trainRFE=X.iloc[:,selector.get_support()]
 trainRFE.info()
+
+#%%Create train and test set from
+X_rfe=trainRFE.drop('repayment_rate', axis='columns')
+
+#%% 
+
+skb = SelectKBest(score_func=f_regression)
+
+et_reg = ExtraTreesRegressor(n_jobs=-1,
+                             random_state=123,
+                             n_estimators=1500)
+
+k=sp_randint(20,100)
+n_iter=10
+
+steps=[('skb',skb),
+       ('et_reg', et_reg)]
+
+pipeline=Pipeline(steps)
+parameters=dict(skb__k=k)
+
+rand_grid = RandomizedSearchCV(pipeline,
+                               param_distributions=parameters,
+                               n_iter=n_iter,
+                               scoring='neg_mean_absolute_error',
+                               cv=3,)
+
+rand_grid.fit(trainRFE, y)
+''' {'skb__k': 90} '''
+#%%
+train_kbest=trainRFE.iloc[:, skb.get_support()]
 
 #%% Sample data set
 #trainTsf_3K = trainTsf.sample(n=3000, random_state=7811)
@@ -225,4 +259,54 @@ sns.barplot(x='school__institutional_characteristics_level',
 # Build predictive models
 #==============================================================================
 
+#%%
+X_train, X_test, y_train, y_test = train_test_split(trainRFE, y, test_size=0.3, random_state=7811)
 
+
+
+
+#%%
+
+skb = SelectKBest(score_func=f_regression)
+
+et_reg = ExtraTreesRegressor(n_jobs=-1,
+                             random_state=7811,
+                             n_estimators=10)
+
+k=sp_randint(20,100)
+n_iter=10
+
+steps=[('skb',skb),
+       ('et_reg', et_reg)]
+
+pipeline=Pipeline(steps)
+parameters=dict(skb__k=k)
+
+rand_grid = RandomizedSearchCV(pipeline,
+                               param_distributions=parameters,
+                               n_iter=n_iter,
+                               scoring='neg_mean_absolute_error',
+                               cv=3,)
+
+rand_grid.fit(X_train, y_train)
+
+#%%
+y_pred = rand_grid.predict(X_test)
+print(rand_grid.score(X_test, y_test))
+
+#%%
+seed=7811
+model = ExtraTreesRegressor(random_state=seed,
+                             n_estimators=100)
+
+scoring='neg_mean_squared_error'
+kfold=KFold(n_splits=10, random_state=seed)
+results=cross_val_score(model,
+                      trainRFE,
+                      y, 
+                      cv=kfold,
+                      scoring=scoring)
+#%%
+mse_scores= -results
+rmse_scores=np.sqrt(mse_scores)
+print(rmse_scores.mean())
